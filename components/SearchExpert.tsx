@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { GoogleGenAI, Type, ThinkingLevel, GenerateContentResponse } from '@google/genai';
+import { GoogleGenAI, Type, GenerateContentResponse } from '@google/genai';
 import { flattenHandbook, HandbookNode } from '@/lib/handbook';
 import { Send, Bot, User, Loader2, Info, Sparkles } from 'lucide-react';
 import { motion } from 'motion/react';
@@ -78,26 +78,38 @@ export function SearchExpert({
     setIsLoading(true);
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY });
+      const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+      
+      if (!apiKey) {
+        throw new Error('MISSING_API_KEY');
+      }
+
+      if (!handbookContext || handbookContext.length < 10) {
+        throw new Error('HANDBOOK_NOT_LOADED');
+      }
+
+      const ai = new GoogleGenAI({ apiKey });
       
       const streamResponse = await ai.models.generateContentStream({
         model: 'gemini-3-flash-preview',
-        contents: userMsg,
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              { text: `Handbook Context:\n${handbookContext}\n\nUser Question: ${userMsg}` }
+            ]
+          }
+        ],
         config: {
-          thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
-          systemInstruction: `You are the Fine Airport Parking AI Assistant. You are provided with specific sections of the Employee Handbook. Your goal is to answer employee questions accurately and professionally.
+          systemInstruction: `You are the Fine Airport Parking AI Assistant. Your goal is to answer employee questions accurately and professionally based ONLY on the provided handbook text.
 
 STRICT RULES:
-Only answer based on the provided handbook text.
-If the answer is not in the text, say: 'I cannot find that specific policy in the handbook. Please contact HR for clarification.'
-Use a helpful, corporate tone.
-Do not make up policies or benefits.
-Never use the em dash in your responses.
-
-At the end of your response, you MUST provide the source heading in this exact format: [[SOURCE: Heading Name]]. If no source is found, do not include this tag.
-
-Provided Handbook Text:
-${handbookContext}`,
+1. Only answer based on the provided handbook text.
+2. If the answer is not in the text, say: 'I cannot find that specific policy in the handbook. Please contact HR for clarification.'
+3. Use a helpful, corporate tone.
+4. Do not make up policies or benefits.
+5. Never use the em dash (—) in your responses. Use a standard hyphen (-) if needed.
+6. At the end of your response, you MUST provide the source heading in this exact format: [[SOURCE: Heading Name]].`,
         }
       });
 
@@ -136,12 +148,25 @@ ${handbookContext}`,
           ));
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error calling Gemini:', error);
+      let errorMessage = 'Sorry, I encountered an error while searching the handbook. Please try again.';
+      
+      if (error.message === 'MISSING_API_KEY') {
+        errorMessage = 'The AI Assistant is not yet configured. Please ensure the Gemini API key is set in the environment variables.';
+      } else if (error.message === 'HANDBOOK_NOT_LOADED') {
+        errorMessage = 'The handbook data is not yet loaded. Please wait a moment or refresh the page.';
+      } else if (error.message?.includes('API_KEY_INVALID')) {
+        errorMessage = 'The provided API key is invalid. Please check your configuration.';
+      } else if (error.message) {
+        // Show the actual error message for debugging
+        errorMessage = `Error: ${error.message}`;
+      }
+
       setMessages(prev => [...prev, {
         id: Date.now().toString(),
         role: 'ai',
-        content: 'Sorry, I encountered an error while searching the handbook. Please try again.'
+        content: errorMessage
       }]);
     } finally {
       setIsLoading(false);
