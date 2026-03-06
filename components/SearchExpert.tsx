@@ -159,8 +159,20 @@ STRICT RULES:
       } else if (error.message?.includes('API_KEY_INVALID')) {
         errorMessage = 'The provided API key is invalid. Please check your configuration.';
       } else if (error.message) {
-        // Show the actual error message for debugging
-        errorMessage = `Error: ${error.message}`;
+        // Try to parse JSON error from Google
+        try {
+          const errorStr = error.message.includes('Error: ') ? error.message.split('Error: ')[1] : error.message;
+          const parsed = JSON.parse(errorStr);
+          const innerError = typeof parsed.error === 'string' ? JSON.parse(parsed.error) : parsed.error;
+          
+          if (innerError?.code === 429 || innerError?.error?.code === 429) {
+            errorMessage = 'The AI Assistant has reached its daily limit for the free testing tier. For the HR presentation, it is recommended to upgrade to a "Pay-as-you-go" plan in Google AI Studio to allow unlimited questions.';
+          } else {
+            errorMessage = `AI Error: ${innerError?.message || innerError?.error?.message || error.message}`;
+          }
+        } catch (e) {
+          errorMessage = `Service Error: ${error.message}`;
+        }
       }
 
       setMessages(prev => [...prev, {
