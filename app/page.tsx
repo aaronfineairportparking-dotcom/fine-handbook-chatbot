@@ -131,7 +131,7 @@ export default function Page() {
             </div>
           )}
           <div className={activeTab === 'search' ? 'block h-full' : 'hidden'}>
-            <SearchExpert handbookData={handbookData} onSourceClick={handleSourceClick} />
+            <SearchExpert onSourceClick={handleSourceClick} />
           </div>
           <div className={activeTab === 'manual' ? 'block h-full' : 'hidden'}>
             <ManualExplorer 

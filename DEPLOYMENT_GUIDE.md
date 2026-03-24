@@ -19,11 +19,6 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# IMPORTANT: NEXT_PUBLIC_ variables must be available at BUILD TIME
-# If you are using Cloud Build, pass this as a build-arg
-ARG NEXT_PUBLIC_GEMINI_API_KEY
-ENV NEXT_PUBLIC_GEMINI_API_KEY=$NEXT_PUBLIC_GEMINI_API_KEY
-
 RUN npm run build
 
 # Stage 3: Production runner
@@ -52,7 +47,7 @@ CMD ["node", "server.js"]
 
 ### 2. Common Issues & Fixes
 
-*   **Missing API Key at Build Time**: `NEXT_PUBLIC_` environment variables are embedded in the JavaScript bundle **during `npm run build`**. If you set the variable in the Cloud Run console *after* the build, it won't work. You must provide it during the build (e.g., using `--build-arg` in Docker or Cloud Build).
+*   **API Key**: The `GEMINI_API_KEY` is a server-side environment variable (not `NEXT_PUBLIC_`). It does NOT need to be available at build time. Set it as a runtime environment variable in Cloud Run.
 *   **Port Configuration**: Cloud Run expects the container to listen on port 8080 (or whatever is in the `$PORT` env var). The `Dockerfile` above handles this.
 *   **Standalone Mode**: Your `next.config.ts` is already set to `output: 'standalone'`. This is great! It creates a minimal production build. However, you must manually copy the `public` and `.next/static` folders into the standalone directory (as shown in the Dockerfile).
 *   **CORS with Apps Script**: If you are using the Live Sync feature, ensure your Google Apps Script Web App is deployed with "Access: Anyone" and that it returns the correct CORS headers if necessary (though `fetch` to a Web App URL usually handles this if it's a simple GET).
@@ -61,15 +56,14 @@ CMD ["node", "server.js"]
 If you have the Google Cloud SDK installed, run:
 
 ```bash
-gcloud builds submit --tag gcr.io/YOUR_PROJECT_ID/handbook-app \
-  --build-arg NEXT_PUBLIC_GEMINI_API_KEY=your_actual_key_here
+gcloud builds submit --tag gcr.io/YOUR_PROJECT_ID/handbook-app
 
 gcloud run deploy handbook-app \
   --image gcr.io/YOUR_PROJECT_ID/handbook-app \
   --platform managed \
   --region your-region \
   --allow-unauthenticated \
-  --set-env-vars NEXT_PUBLIC_GEMINI_API_KEY=your_actual_key_here
+  --set-env-vars GEMINI_API_KEY=your_actual_key_here
 ```
 
 **Suggestion**: Check your Cloud Run logs in the Google Cloud Console. They will tell you exactly why the container is failing to start or why the app is crashing.
