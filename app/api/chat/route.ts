@@ -100,7 +100,7 @@ export async function POST(request: Request) {
 
   try {
     const stream = await ai.models.generateContentStream({
-      model: 'gemini-3.1-flash-lite',
+      model: 'gemini-3.1-flash-lite-preview',
       contents,
       config: {
         systemInstruction: SYSTEM_INSTRUCTION,
