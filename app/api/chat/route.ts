@@ -86,15 +86,22 @@ export async function POST(request: Request) {
     .map(s => `Heading: ${s.path}\nContent: ${s.content}`)
     .join('\n\n');
 
-  const userContent = `Relevant Handbook Sections:\n${contextText}\n\nUser Question: ${message}`;
+  const contextualPrompt = `Relevant Handbook Sections:\n${contextText}\n\nUser Question: ${message}`;
 
-  session.history.push({ role: 'user', parts: [{ text: userContent }] });
+  // Store only the raw user question in history (not the bulky context)
+  session.history.push({ role: 'user', parts: [{ text: message }] });
   session.turnCount++;
+
+  // Build the contents array: past history + current turn with context injected
+  const contents = [
+    ...session.history.slice(0, -1),
+    { role: 'user' as const, parts: [{ text: contextualPrompt }] },
+  ];
 
   try {
     const stream = await ai.models.generateContentStream({
-      model: 'gemini-3-flash-preview',
-      contents: session.history,
+      model: 'gemini-3.1-flash-lite',
+      contents,
       config: {
         systemInstruction: SYSTEM_INSTRUCTION,
       },
@@ -137,10 +144,14 @@ export async function POST(request: Request) {
     const errMessage = err?.message || 'Unknown error';
     if (errMessage.includes('429') || errMessage.includes('RESOURCE_EXHAUSTED')) {
       return Response.json(
-        { error: 'The AI Assistant has reached its rate limit. Please wait a moment and try again.' },
+        { error: 'The assistant is temporarily busy. Please wait a moment and try again.' },
         { status: 429 }
       );
     }
-    return Response.json({ error: `AI Error: ${errMessage}` }, { status: 500 });
+    console.error('Gemini API error:', errMessage);
+    return Response.json(
+      { error: 'Something went wrong. Please try your question again.' },
+      { status: 500 }
+    );
   }
 }
