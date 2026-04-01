@@ -54,6 +54,31 @@ function getOrCreateSession(sessionId: string): SessionEntry {
   return entry;
 }
 
+const QUERY_EXPANSION_PROMPT = `You are a search keyword expander for an employee handbook at a parking company. Given an employee's question, output 5-10 relevant search keywords and phrases separated by commas. Include synonyms, related HR terms, and specific policy areas. Only output the comma-separated keywords, nothing else.
+
+Examples:
+- "Can I smoke weed?" → weed, marijuana, cannabis, THC, drug, substance, drug testing, substance-free workplace
+- "What about PTO?" → PTO, paid time off, vacation, time off, leave, personal day, accrual
+- "How do I call out?" → call out, callout, absence, attendance, no call no show, tardiness, punctuality
+- "Can I get fired?" → termination, fired, dismissal, at-will, discipline, corrective action`;
+
+async function expandQuery(genai: GoogleGenAI, message: string): Promise<string> {
+  try {
+    const result = await genai.models.generateContent({
+      model: 'gemini-3.1-flash-lite-preview',
+      contents: message,
+      config: {
+        systemInstruction: QUERY_EXPANSION_PROMPT,
+      },
+    });
+    const expanded = result.text?.trim();
+    // Return original + expanded so both contribute to scoring
+    return expanded ? `${message} ${expanded}` : message;
+  } catch {
+    return message;
+  }
+}
+
 export async function POST(request: Request) {
   if (!ai) {
     return Response.json(
@@ -82,7 +107,8 @@ export async function POST(request: Request) {
     session = getOrCreateSession(sessionId);
   }
 
-  const relevantSections = findRelevantSections(message, allSections);
+  const expandedQuery = await expandQuery(ai, message);
+  const relevantSections = findRelevantSections(expandedQuery, allSections);
   const contextText = relevantSections
     .map(s => `Heading: ${s.path}\nContent: ${s.content}`)
     .join('\n\n');
