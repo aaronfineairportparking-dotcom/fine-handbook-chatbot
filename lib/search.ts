@@ -10,18 +10,26 @@ const SYNONYM_MAP: Record<string, string[]> = {
   fired: ['termination', 'terminate', 'terminated', 'dismissal'],
   quit: ['resignation', 'resign', 'voluntary termination'],
   pto: ['paid time off', 'vacation', 'leave', 'time off', 'personal day'],
+  vacation: ['pto', 'paid time off', 'time off', 'personal day'],
   hurt: ['injury', 'workers comp', 'accident', 'incident'],
   pay: ['compensation', 'wages', 'salary', 'payroll', 'paycheck'],
   schedule: ['shift', 'hours', 'work hours', 'overtime'],
   benefits: ['insurance', 'health', 'dental', 'vision', '401k'],
   dress: ['uniform', 'appearance', 'dress code', 'attire'],
   phone: ['cell phone', 'mobile', 'personal device', 'electronic'],
-  drug: ['substance', 'alcohol', 'marijuana', 'testing', 'screening'],
+  drug: ['substance', 'alcohol', 'marijuana', 'cannabis', 'weed', 'thc', 'testing', 'screening'],
+  weed: ['marijuana', 'cannabis', 'thc', 'drug', 'substance'],
+  marijuana: ['cannabis', 'weed', 'thc', 'drug', 'substance'],
   harassment: ['sexual harassment', 'hostile', 'discrimination', 'complaint'],
   parking: ['vehicle', 'lot', 'garage', 'valet'],
   training: ['orientation', 'onboarding', 'introductory'],
   discipline: ['corrective action', 'warning', 'write up', 'writeup'],
   break: ['meal', 'lunch', 'rest period'],
+  attendance: ['punctuality', 'tardy', 'absent', 'absence', 'no call', 'no show', 'callout', 'call out'],
+  absent: ['attendance', 'absence', 'no call', 'no show', 'unscheduled'],
+  callout: ['call out', 'absent', 'absence', 'attendance', 'no call', 'no show'],
+  tardy: ['late', 'attendance', 'punctuality'],
+  holiday: ['holidays', 'holiday pay', 'double pay'],
 };
 
 const STOP_WORDS = new Set([
@@ -40,7 +48,7 @@ const STOP_WORDS = new Set([
   'them', 'their', 'our', 'we', 'you', 'your', 'he', 'it', 'get',
   'make', 'like', 'know', 'take', 'come', 'think', 'look', 'want',
   'give', 'use', 'find', 'tell', 'ask', 'work', 'seem', 'feel',
-  'try', 'leave', 'call', 'got', 'also', 'much', 'many',
+  'try', 'got', 'also', 'much', 'many',
 ]);
 
 export function flattenToSections(nodes: HandbookNode[], pathParts: string[] = []): HandbookSection[] {
@@ -62,8 +70,11 @@ export function flattenToSections(nodes: HandbookNode[], pathParts: string[] = [
 }
 
 function expandQueryTerms(query: string): string[] {
-  const terms = query
-    .toLowerCase()
+  const queryLower = query.toLowerCase();
+
+  // Strip punctuation, then split and filter
+  const terms = queryLower
+    .replace(/[^a-z0-9\s]/g, '')
     .split(/\s+/)
     .filter(t => t.length > 2 && !STOP_WORDS.has(t));
 
@@ -82,6 +93,24 @@ function expandQueryTerms(query: string): string[] {
         expanded.add(key);
         for (const syn of synonyms) {
           expanded.add(syn);
+        }
+      }
+    }
+  }
+
+  // Full-query matching: check if any multi-word synonym appears in the full query
+  for (const [key, synonyms] of Object.entries(SYNONYM_MAP)) {
+    if (queryLower.includes(key)) {
+      expanded.add(key);
+      for (const syn of synonyms) {
+        expanded.add(syn);
+      }
+    }
+    for (const syn of synonyms) {
+      if (syn.includes(' ') && queryLower.includes(syn)) {
+        expanded.add(key);
+        for (const s of synonyms) {
+          expanded.add(s);
         }
       }
     }
